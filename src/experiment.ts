@@ -1,4 +1,5 @@
 const kind = Symbol('kind');
+const type = Symbol('type');
 const signature = Symbol('signature');
 const effect = Symbol('effect');
 
@@ -39,10 +40,69 @@ function fn<const T extends string>(tag: T) {
   };
 }
 
-function trace<T extends { [kind]: 'effect' }>(effects: T[]) {
+type AnyEffect = {
+  [kind]: 'effect';
+  [effect]: string;
+  [signature]: any;
+};
+
+type AnyYield = {
+  [kind]: 'step';
+  [type]: 'yields';
+  effect: AnyEffect;
+};
+
+type AnyStep =
+  | AnyYield
+  | {
+      [kind]: 'step';
+      [type]: 'throws';
+      error: any;
+    }
+  | {
+      [kind]: 'step';
+      [type]: 'returns';
+      value: any;
+    };
+
+type AnyTrace = {
+  [kind]: 'trace';
+  steps: AnyStep[];
+};
+
+type AnyProgram = {
+  [kind]: 'program';
+  traces: AnyTrace[];
+};
+
+function yields<T extends AnyEffect>(effect: T) {
+  return {
+    [kind]: 'step' as const,
+    [type]: 'yields' as const,
+    effect,
+  };
+}
+
+function throws<T>(error: T) {
+  return {
+    [kind]: 'step' as const,
+    [type]: 'throws' as const,
+    error,
+  };
+}
+
+function returns<T>(value: T) {
+  return {
+    [kind]: 'step' as const,
+    [type]: 'returns' as const,
+    value,
+  };
+}
+
+function trace<T extends AnyStep[]>(steps: T) {
   return {
     [kind]: 'trace' as const,
-    effects,
+    steps,
   };
 }
 
@@ -53,60 +113,41 @@ function program<T extends { [kind]: 'trace' }>(traces: T[]) {
   };
 }
 
-type AnyEffect = {
-  [kind]: 'effect';
-  [effect]: string;
-  [signature]: any;
-};
-
-type AnyTrace = {
-  [kind]: 'trace';
-  effects: AnyEffect[];
-};
-
-type AnyProgram = {
-  [kind]: 'program';
-  traces: AnyTrace[];
-};
-
 const sql = tag('sql');
 const fetch = fn('fetch');
 
 const IO = program([
   trace([
-    sql //
-      .takes(2, 'Bob')
-      .returns([]),
+    yields(sql.takes(2, 'Bob').returns([])),
+    throws(new Error('no users')),
   ]),
 
   trace([
-    sql //
-      .takes(NaN, 'Alice')
-      .returns(undefined),
+    yields(sql.takes(NaN, 'Alice').returns(undefined)),
+    throws(new Error('no users')),
   ]),
 
   trace([
-    sql //
-      .takes(1, 'Alice')
-      .returns([{ id: 1, name: 'Alice' }]),
-
-    fetch //
-      .takes('stripe/customers', { query: { userId: 1 } })
-      .returns([
+    yields(sql.takes(1, 'Alice').returns([{ id: 1, name: 'Alice' }])),
+    yields(
+      fetch.takes('stripe/customers', { query: { userId: 1 } }).returns([
         {
           id: 1,
           name: 'Alice',
           stripeCustomerId: 'cus_1234567890',
         },
-      ]),
+      ])
+    ),
+    returns(undefined),
   ]),
 ]);
 
-type Effects<T extends AnyProgram> = T['traces'][number]['effects'][number];
+type Steps<T extends AnyProgram> = T['traces'][number]['steps'][number];
+type Effects<T> = T extends AnyYield ? T['effect'] : never;
 type Effect<T, Name extends string> = T extends { [effect]: Name } ? T : never;
 type Context<T extends AnyProgram> = {
-  [Name in Effects<T>[typeof effect]]: Effect<
-    Effects<T>,
+  [Name in Effects<Steps<T>>[typeof effect]]: Effect<
+    Effects<Steps<T>>,
     Name
   >[typeof signature];
 };
