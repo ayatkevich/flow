@@ -111,13 +111,14 @@ type Context<T extends AnyProgram> = {
   >[typeof signature];
 };
 
-function implementation<T extends AnyProgram>(
-  fn: (this: Context<T>) => Generator<any, void, any>
-) {
+function implementation<
+  T extends AnyProgram,
+  Fn extends (this: Context<T>) => Generator<any, any, any>
+>(program: T, fn: Fn) {
   return fn;
 }
 
-const io = implementation<typeof IO>(function* io() {
+const io = implementation(IO, function* io() {
   const users = yield* this.sql`
     select * from users where "id" = ${1} and "name" = ${'Alice'}
   `;
