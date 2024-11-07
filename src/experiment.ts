@@ -53,25 +53,44 @@ function program<T extends { [kind]: 'trace' }>(traces: T[]) {
   };
 }
 
-const _ = program([
+type AnyEffect = {
+  [kind]: 'effect';
+  [effect]: string;
+  [signature]: any;
+};
+
+type AnyTrace = {
+  [kind]: 'trace';
+  effects: AnyEffect[];
+};
+
+type AnyProgram = {
+  [kind]: 'program';
+  traces: AnyTrace[];
+};
+
+const sql = tag('sql');
+const fetch = fn('fetch');
+
+const IO = program([
   trace([
-    tag('sql') //
-      .takes()
+    sql //
+      .takes(2, 'Bob')
       .returns([]),
   ]),
 
   trace([
-    tag('sql') //
-      .takes()
+    sql //
+      .takes(NaN, 'Alice')
       .returns(undefined),
   ]),
 
   trace([
-    tag('sql')
-      .takes()
+    sql //
+      .takes(1, 'Alice')
       .returns([{ id: 1, name: 'Alice' }]),
 
-    fn('fetch')
+    fetch //
       .takes('stripe/customers', { query: { userId: 1 } })
       .returns([
         {
@@ -83,24 +102,31 @@ const _ = program([
   ]),
 ]);
 
-type Effects = (typeof _)['traces'][number]['effects'][number];
+type Effects<T extends AnyProgram> = T['traces'][number]['effects'][number];
 type Effect<T, Name extends string> = T extends { [effect]: Name } ? T : never;
-type Context = {
-  [Name in Effects[typeof effect]]: Effect<Effects, Name>[typeof signature];
+type Context<T extends AnyProgram> = {
+  [Name in Effects<T>[typeof effect]]: Effect<
+    Effects<T>,
+    Name
+  >[typeof signature];
 };
 
-function* io(this: Context) {
+function implementation<T extends AnyProgram>(
+  fn: (this: Context<T>) => Generator<any, void, any>
+) {
+  return fn;
+}
+
+const io = implementation<typeof IO>(function* io() {
   const users = yield* this.sql`
-    select * from users
+    select * from users where "id" = ${1} and "name" = ${'Alice'}
   `;
 
   if (!users) throw new Error('no users');
 
-  if (users.length === 0) {
-    throw new Error('no users');
+  for (const user of users) {
+    const stripeCustomers = yield* this.fetch(`stripe/customers`, {
+      query: { userId: user.id },
+    });
   }
-
-  const stripeCustomers = yield* this.fetch(`stripe/customers`, {
-    query: { userId: users[0].id },
-  });
-}
+});
