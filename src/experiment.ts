@@ -187,6 +187,17 @@ function program<T extends { [kind]: 'trace' }>(traces: T[]) {
   };
 }
 
+function implementation<
+  T extends AnyProgram,
+  Fn extends (this: Context<T>) => Generator<any, any, any>
+>(program: T, fn: Fn) {
+  return fn;
+}
+
+async function handle<
+  T extends (this: Context<AnyProgram>) => Generator<any, any, any>
+>(generatorFunction: T, handlers: Handlers<T>) {}
+
 const sql = tag('sql');
 const fetch = fn('fetch');
 
@@ -216,17 +227,6 @@ const IO = program([
   ]),
 ]);
 
-function implementation<
-  T extends AnyProgram,
-  Fn extends (this: Context<T>) => Generator<any, any, any>
->(program: T, fn: Fn) {
-  return fn;
-}
-
-async function handle<
-  T extends (this: Context<AnyProgram>) => Generator<any, any, any>
->(generatorFunction: T, handlers: Handlers<T>) {}
-
 const io = implementation(IO, function* () {
   const users = yield* this.sql`
     select * from users where "id" = ${1} and "name" = ${'Alice'}
@@ -249,11 +249,13 @@ const io = implementation(IO, function* () {
 
 handle(io, {
   sql: (strings, ...params) => {
-    console.log(strings, params);
+    strings satisfies TemplateStringsArray;
+    params satisfies [number, string];
     return [];
   },
   fetch: (url, options) => {
-    console.log(url, options);
+    url satisfies string;
+    options satisfies { query: { userId: number } };
     return [];
   },
 });
