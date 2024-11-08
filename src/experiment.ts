@@ -1,44 +1,7 @@
 const kind = Symbol('kind');
-const type = Symbol('type');
 const signature = Symbol('signature');
+const step = Symbol('step');
 const effect = Symbol('effect');
-
-function tag<const T extends string>(tag: T) {
-  return {
-    takes<P extends any[]>(...params: P) {
-      return {
-        returns<V>(value: V) {
-          return {
-            [kind]: 'effect' as const,
-            [effect]: tag,
-            [signature]: undefined as any as (
-              strings: TemplateStringsArray,
-              ...args: [...P]
-            ) => { [Symbol.iterator]: () => Iterator<{ [effect]: T }, V> },
-          };
-        },
-      };
-    },
-  };
-}
-
-function fn<const T extends string>(tag: T) {
-  return {
-    takes<P extends any[]>(...params: P) {
-      return {
-        returns<R>(result: R) {
-          return {
-            [kind]: 'effect' as const,
-            [effect]: tag,
-            [signature]: undefined as any as (...args: [...P]) => {
-              [Symbol.iterator]: () => Iterator<{ [effect]: T }, R>;
-            },
-          };
-        },
-      };
-    },
-  };
-}
 
 type AnyEffect = {
   [kind]: 'effect';
@@ -48,7 +11,7 @@ type AnyEffect = {
 
 type AnyYield = {
   [kind]: 'step';
-  [type]: 'yields';
+  [step]: 'yields';
   effect: AnyEffect;
 };
 
@@ -56,12 +19,12 @@ type AnyStep =
   | AnyYield
   | {
       [kind]: 'step';
-      [type]: 'throws';
+      [step]: 'throws';
       error: any;
     }
   | {
       [kind]: 'step';
-      [type]: 'returns';
+      [step]: 'returns';
       value: any;
     };
 
@@ -75,10 +38,121 @@ type AnyProgram = {
   traces: AnyTrace[];
 };
 
+type Steps<T extends AnyProgram> = T['traces'][number]['steps'][number];
+
+type ProgramEffects<T> = T extends AnyYield ? T['effect'] : never;
+
+type ProgramEffect<T, Name extends string> = T extends { [effect]: Name }
+  ? T
+  : never;
+
+type Context<T extends AnyProgram> = {
+  [Name in ProgramEffects<Steps<T>>[typeof effect]]: ProgramEffect<
+    ProgramEffects<Steps<T>>,
+    Name
+  >[typeof signature];
+};
+
+type ImplementationEffects<
+  T extends (this: Context<AnyProgram>) => Generator<any, any, any>
+> = ReturnType<T> extends Generator<
+  infer Effects extends { [effect]: string },
+  any,
+  any
+>
+  ? Effects
+  : never;
+
+type ImplementationEffect<T, Name extends string> = T extends {
+  [effect]: Name;
+  from: 'tag' | 'fn';
+  takes: any;
+  returns: any;
+}
+  ? T
+  : never;
+
+type Handlers<
+  T extends (this: Context<AnyProgram>) => Generator<any, any, any>
+> = {
+  [Name in ImplementationEffects<T>[typeof effect]]: ImplementationEffect<
+    ImplementationEffects<T>,
+    Name
+  >['from'] extends 'tag'
+    ? (
+        strings: TemplateStringsArray,
+        ...params: [
+          ...ImplementationEffect<ImplementationEffects<T>, Name>['takes']
+        ]
+      ) => ImplementationEffect<ImplementationEffects<T>, Name>['returns']
+    : (
+        ...params: [
+          ...ImplementationEffect<ImplementationEffects<T>, Name>['takes']
+        ]
+      ) => ImplementationEffect<ImplementationEffects<T>, Name>['returns'];
+};
+
+function tag<const T extends string>(tag: T) {
+  return {
+    takes<P extends any[]>(...params: P) {
+      return {
+        returns<V>(value: V) {
+          return {
+            [kind]: 'effect' as const,
+            [effect]: tag,
+            [signature]: undefined as any as (
+              strings: TemplateStringsArray,
+              ...args: [...P]
+            ) => {
+              [Symbol.iterator]: () => Iterator<
+                {
+                  [kind]: 'effect';
+                  [effect]: T;
+                  from: 'tag';
+                  takes: [...P];
+                  returns: V;
+                },
+                V
+              >;
+            },
+          };
+        },
+      };
+    },
+  };
+}
+
+function fn<const T extends string>(tag: T) {
+  return {
+    takes<P extends any[]>(...params: P) {
+      return {
+        returns<V>(value: V) {
+          return {
+            [kind]: 'effect' as const,
+            [effect]: tag,
+            [signature]: undefined as any as (...args: [...P]) => {
+              [Symbol.iterator]: () => Iterator<
+                {
+                  [kind]: 'effect';
+                  [effect]: T;
+                  from: 'fn';
+                  takes: [...P];
+                  returns: V;
+                },
+                V
+              >;
+            },
+          };
+        },
+      };
+    },
+  };
+}
+
 function yields<T extends AnyEffect>(effect: T) {
   return {
     [kind]: 'step' as const,
-    [type]: 'yields' as const,
+    [step]: 'yields' as const,
     effect,
   };
 }
@@ -86,7 +160,7 @@ function yields<T extends AnyEffect>(effect: T) {
 function throws<T>(error: T) {
   return {
     [kind]: 'step' as const,
-    [type]: 'throws' as const,
+    [step]: 'throws' as const,
     error,
   };
 }
@@ -94,7 +168,7 @@ function throws<T>(error: T) {
 function returns<T>(value: T) {
   return {
     [kind]: 'step' as const,
-    [type]: 'returns' as const,
+    [step]: 'returns' as const,
     value,
   };
 }
@@ -142,16 +216,6 @@ const IO = program([
   ]),
 ]);
 
-type Steps<T extends AnyProgram> = T['traces'][number]['steps'][number];
-type Effects<T> = T extends AnyYield ? T['effect'] : never;
-type Effect<T, Name extends string> = T extends { [effect]: Name } ? T : never;
-type Context<T extends AnyProgram> = {
-  [Name in Effects<Steps<T>>[typeof effect]]: Effect<
-    Effects<Steps<T>>,
-    Name
-  >[typeof signature];
-};
-
 function implementation<
   T extends AnyProgram,
   Fn extends (this: Context<T>) => Generator<any, any, any>
@@ -159,10 +223,15 @@ function implementation<
   return fn;
 }
 
-const io = implementation(IO, function* io() {
+async function handle<
+  T extends (this: Context<AnyProgram>) => Generator<any, any, any>
+>(generatorFunction: T, handlers: Handlers<T>) {}
+
+const io = implementation(IO, function* () {
   const users = yield* this.sql`
     select * from users where "id" = ${1} and "name" = ${'Alice'}
   `;
+  users satisfies { id: number; name: string }[] | undefined;
 
   if (!users) throw new Error('no users');
 
@@ -170,5 +239,21 @@ const io = implementation(IO, function* io() {
     const stripeCustomers = yield* this.fetch(`stripe/customers`, {
       query: { userId: user.id },
     });
+    stripeCustomers satisfies {
+      id: number;
+      name: string;
+      stripeCustomerId: string;
+    }[];
   }
+});
+
+handle(io, {
+  sql: (strings, ...params) => {
+    console.log(strings, params);
+    return [];
+  },
+  fetch: (url, options) => {
+    console.log(url, options);
+    return [];
+  },
 });
