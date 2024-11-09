@@ -66,12 +66,12 @@ describe("tracify", () => {
     });
 
     await handle(io, {
-      sql: (strings, ...params) => {
+      async sql(strings, ...params) {
         strings satisfies TemplateStringsArray;
         params satisfies [number, string];
         return [{ id: params[0], name: params[1] }];
       },
-      fetch: (url, options) => {
+      async fetch(url, options) {
         url satisfies string;
         options satisfies { query: { userId: number } };
         return [];

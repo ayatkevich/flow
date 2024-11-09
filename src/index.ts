@@ -76,10 +76,10 @@ type Handlers<T extends (this: Context<AnyProgram>) => Generator<any, any, any>>
     ? (
         strings: TemplateStringsArray,
         ...params: [...ImplementationEffect<ImplementationEffects<T>, Name>["takes"]]
-      ) => ImplementationEffect<ImplementationEffects<T>, Name>["returns"]
+      ) => Promise<ImplementationEffect<ImplementationEffects<T>, Name>["returns"]>
     : (
         ...params: [...ImplementationEffect<ImplementationEffects<T>, Name>["takes"]]
-      ) => ImplementationEffect<ImplementationEffects<T>, Name>["returns"];
+      ) => Promise<ImplementationEffect<ImplementationEffects<T>, Name>["returns"]>;
 };
 
 export function tag<const T extends string>(tag: T) {
@@ -201,15 +201,21 @@ export async function handle<T extends (this: Context<AnyProgram>) => Generator<
         get(_, property) {
           return (...args: any[]) => ({
             [Symbol.iterator]: function* () {
-              return handlers[property as keyof Handlers<T>](...args);
+              // @ts-expect-error
+              return yield handlers[property as keyof Handlers<T>](...args);
             },
           });
         },
       }
     )
   );
-  for (const value of generator) {
-    console.log(value);
+  let next = generator.next();
+  let nextValue;
+  while (!next.done) {
+    if (next.value instanceof Promise) {
+      nextValue = await next.value;
+    }
+    next = generator.next(nextValue);
   }
 }
 
