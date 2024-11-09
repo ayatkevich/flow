@@ -69,7 +69,7 @@ describe("tracify", () => {
       sql: (strings, ...params) => {
         strings satisfies TemplateStringsArray;
         params satisfies [number, string];
-        return [];
+        return [{ id: params[0], name: params[1] }];
       },
       fetch: (url, options) => {
         url satisfies string;

@@ -193,7 +193,25 @@ export function implementation<
 export async function handle<T extends (this: Context<AnyProgram>) => Generator<any, any, any>>(
   generatorFunction: T,
   handlers: Handlers<T>
-) {}
+) {
+  const generator = generatorFunction.call(
+    new Proxy(
+      {},
+      {
+        get(_, property) {
+          return (...args: any[]) => ({
+            [Symbol.iterator]: function* () {
+              return handlers[property as keyof Handlers<T>](...args);
+            },
+          });
+        },
+      }
+    )
+  );
+  for (const value of generator) {
+    console.log(value);
+  }
+}
 
 export function verify<
   T extends AnyProgram,
