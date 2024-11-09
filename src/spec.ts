@@ -1,4 +1,15 @@
-import { fn, handle, implementation, program, returns, tag, throws, trace, yields } from "./index";
+import {
+  fn,
+  handle,
+  implementation,
+  program,
+  returns,
+  tag,
+  throws,
+  trace,
+  verify,
+  yields,
+} from "./index";
 
 describe("tracify", () => {
   test("", async () => {
@@ -8,13 +19,13 @@ describe("tracify", () => {
     const IO = program([
       trace([
         //
-        yields(sql.takes(2, "Bob").returns([])),
+        yields(sql.takes(1, "Alice").returns([])),
         throws(new Error("no users")),
       ]),
 
       trace([
         //
-        yields(sql.takes(NaN, "Alice").returns(undefined)),
+        yields(sql.takes(1, "Alice").returns(undefined)),
         throws(new Error("no users")),
       ]),
 
@@ -40,7 +51,7 @@ describe("tracify", () => {
       `;
       users satisfies { id: number; name: string }[] | undefined;
 
-      if (!users) throw new Error("no users");
+      if (!users || !users.length) throw new Error("no users");
 
       for (const user of users) {
         const stripeCustomers = yield* this.fetch(`stripe/customers`, {
@@ -54,7 +65,7 @@ describe("tracify", () => {
       }
     });
 
-    handle(io, {
+    await handle(io, {
       sql: (strings, ...params) => {
         strings satisfies TemplateStringsArray;
         params satisfies [number, string];
@@ -66,5 +77,7 @@ describe("tracify", () => {
         return [];
       },
     });
+
+    verify(IO, io);
   });
 });
