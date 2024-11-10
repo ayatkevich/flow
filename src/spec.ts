@@ -71,7 +71,7 @@ describe("tracify", () => {
         params satisfies [number, string];
         return [{ id: params[0], name: params[1] }];
       },
-      async fetch(url, options) {
+      fetch(url, options) {
         url satisfies string;
         options satisfies { query: { userId: number } };
         return [];

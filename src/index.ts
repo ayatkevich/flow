@@ -68,6 +68,8 @@ type ImplementationEffect<T, Name extends string> = T extends {
   ? T
   : never;
 
+type Promisable<T> = T | Promise<T>;
+
 type Handlers<T extends (this: Context<AnyProgram>) => Generator<any, any, any>> = {
   [Name in ImplementationEffects<T>[typeof effect]]: ImplementationEffect<
     ImplementationEffects<T>,
@@ -76,10 +78,10 @@ type Handlers<T extends (this: Context<AnyProgram>) => Generator<any, any, any>>
     ? (
         strings: TemplateStringsArray,
         ...params: [...ImplementationEffect<ImplementationEffects<T>, Name>["takes"]]
-      ) => Promise<ImplementationEffect<ImplementationEffects<T>, Name>["returns"]>
+      ) => Promisable<ImplementationEffect<ImplementationEffects<T>, Name>["returns"]>
     : (
         ...params: [...ImplementationEffect<ImplementationEffects<T>, Name>["takes"]]
-      ) => Promise<ImplementationEffect<ImplementationEffects<T>, Name>["returns"]>;
+      ) => Promisable<ImplementationEffect<ImplementationEffects<T>, Name>["returns"]>;
 };
 
 export function tag<const T extends string>(tag: T) {
@@ -210,12 +212,8 @@ export async function handle<T extends (this: Context<AnyProgram>) => Generator<
     )
   );
   let next = generator.next();
-  let nextValue;
   while (!next.done) {
-    if (next.value instanceof Promise) {
-      nextValue = await next.value;
-    }
-    next = generator.next(nextValue);
+    next = generator.next(next.value instanceof Promise ? await next.value : next.value);
   }
 }
 
