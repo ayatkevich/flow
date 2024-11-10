@@ -12,7 +12,7 @@ import {
 } from "./index";
 
 describe("tracify", () => {
-  test("", async () => {
+  test("example", async () => {
     const sql = tag("sql");
     const fetch = fn("fetch");
 
@@ -79,5 +79,94 @@ describe("tracify", () => {
     });
 
     verify(IO, io);
+  });
+
+  it("should not allow use of effects that were not defined in the program", () => {
+    const IO = program([]);
+    const io = implementation(IO, function* () {
+      // @ts-expect-error
+      yield* this.sql`select * from users`;
+    });
+  });
+
+  it("should not allow incorrect use of an effect", async () => {
+    const IO = program([
+      trace([
+        //
+        yields(fn("effect").takes(1).returns("string")),
+      ]),
+    ]);
+
+    const io = implementation(IO, function* () {
+      // @ts-expect-error wrong argument type
+      yield* this.effect("string");
+      yield* this.effect(1);
+    });
+
+    expect(() => verify(IO, io)).toThrow('expected [1] but got ["string"]');
+
+    try {
+      // @ts-expect-error no effect handler
+      await handle(io, {});
+      await handle(io, {
+        // @ts-expect-error wrong return type
+        async effect(value) {
+          return value;
+        },
+      });
+      await handle(io, {
+        async effect(value) {
+          value satisfies number;
+          return "string";
+        },
+      });
+    } catch {}
+  });
+
+  test("verify", () => {
+    const IO = program([
+      trace([
+        //
+        yields(fn("effect").takes(1).returns("string")),
+      ]),
+    ]);
+
+    // correct implementation
+    verify(
+      IO,
+      implementation(IO, function* () {
+        yield* this.effect(1);
+      })
+    );
+
+    // incorrect implementation
+    expect(() =>
+      verify(
+        IO,
+        implementation(IO, function* () {})
+      )
+    ).toThrow("expected to yield but returned");
+
+    // incorrect implementation
+    expect(() =>
+      verify(
+        IO,
+        implementation(IO, function* () {
+          // @ts-expect-error wrong effect
+          yield* this.wrongEffect();
+        })
+      )
+    ).toThrow("expected effect but got wrongEffect");
+
+    // incorrect implementation
+    expect(() =>
+      verify(
+        IO,
+        implementation(IO, function* () {
+          // @ts-expect-error wrong kind of effect
+          yield* this.effect``;
+        })
+      )
+    ).toThrow("expected fn but got tag");
   });
 });
