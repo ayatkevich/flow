@@ -215,6 +215,7 @@ export async function handle<T extends (this: Context<AnyProgram>) => Generator<
   while (!next.done) {
     next = generator.next(next.value instanceof Promise ? await next.value : next.value);
   }
+  return next.value;
 }
 
 export function verify<
@@ -252,33 +253,39 @@ export function verify<
     let nextValue;
 
     for (const step of trace.steps) {
-      if (step[type] === "yields") {
-        if (next.done) throw new Error("expected to yield but returned");
-        if (next.value[effect] !== step.effect[effect])
-          throw new Error(`expected ${step.effect[effect]} but got ${next.value[effect]}`);
-        if (next.value.from !== step.effect.from)
-          throw new Error(`expected ${step.effect.from} but got ${next.value.from}`);
-        if (!deepEqual(next.value.takes, step.effect.takes))
-          throw new Error(
-            `expected ${JSON.stringify(step.effect.takes)} but got ${JSON.stringify(
-              next.value.takes
-            )}`
-          );
-        nextValue = step.effect.returns;
-      } else if (step[type] === "throws") {
-        if (!next.done) throw new Error("expected to throw but didn't");
-        if (!deepEqual(next.value, step.error))
-          throw new Error(
-            `expected ${JSON.stringify(step.error)} but got ${JSON.stringify(next.value)}`
-          );
-        nextValue = undefined;
-      } else if (step[type] === "returns") {
-        if (!next.done) throw new Error("expected to return but didn't");
-        if (!deepEqual(next.value, step.value))
-          throw new Error(
-            `expected ${JSON.stringify(step.value)} but got ${JSON.stringify(next.value)}`
-          );
-        nextValue = undefined;
+      switch (step[type]) {
+        case "yields":
+          if (next.done) throw new Error("expected to yield but returned");
+          if (next.value[effect] !== step.effect[effect])
+            throw new Error(`expected ${step.effect[effect]} but got ${next.value[effect]}`);
+          if (next.value.from !== step.effect.from)
+            throw new Error(`expected ${step.effect.from} but got ${next.value.from}`);
+          if (!deepEqual(next.value.takes, step.effect.takes))
+            throw new Error(
+              `expected ${JSON.stringify(step.effect.takes)} but got ${JSON.stringify(
+                next.value.takes
+              )}`
+            );
+          nextValue = step.effect.returns;
+          break;
+
+        case "throws":
+          if (!next.done) throw new Error("expected to throw but didn't");
+          if (!deepEqual(next.value, step.error))
+            throw new Error(
+              `expected ${JSON.stringify(step.error)} but got ${JSON.stringify(next.value)}`
+            );
+          nextValue = undefined;
+          break;
+
+        case "returns":
+          if (!next.done) throw new Error("expected to return but didn't");
+          if (!deepEqual(next.value, step.value))
+            throw new Error(
+              `expected ${JSON.stringify(step.value)} but got ${JSON.stringify(next.value)}`
+            );
+          nextValue = undefined;
+          break;
       }
 
       try {

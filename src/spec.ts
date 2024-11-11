@@ -309,6 +309,7 @@ describe("tracify", () => {
       trace([
         //
         yields(fn("effect").takes(1).returns("string")),
+        returns("string"),
       ]),
     ]);
 
@@ -316,9 +317,30 @@ describe("tracify", () => {
     verify(
       IO,
       implementation(IO, function* () {
-        yield* this.effect(1);
+        return yield* this.effect(1);
       })
     );
+
+    // incorrect implementation
+    expect(() =>
+      verify(
+        IO,
+        implementation(IO, function* () {
+          yield* this.effect(1);
+        })
+      )
+    ).toThrow(`expected "string" but got undefined`);
+
+    // incorrect implementation
+    expect(() =>
+      verify(
+        IO,
+        implementation(IO, function* () {
+          yield* this.effect(1);
+          yield* this.effect(1);
+        })
+      )
+    ).toThrow(`expected to return but didn't`);
 
     // incorrect implementation
     expect(() =>
