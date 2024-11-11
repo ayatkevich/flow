@@ -288,6 +288,32 @@ describe("tracify", () => {
     ).rejects.toThrow("random error");
   });
 
+  test("example - dom", async () => {
+    const IO = program([
+      trace([
+        yields(fn("body").takes().returns({ dom: "body" })),
+        yields(fn("once").takes({ dom: "body" }, "submit").returns({ name: "" })),
+        yields(tag("html").takes("world").returns({ dom: "page" })),
+        yields(fn("append").takes({ dom: "body" }, { dom: "page" }).returns({ dom: "body" })),
+      ]),
+      trace([
+        yields(fn("body").takes().returns({ dom: "body" })),
+        yields(fn("once").takes({ dom: "body" }, "submit").returns({ name: "username" })),
+        yields(tag("html").takes("username").returns({ dom: "page" })),
+        yields(fn("append").takes({ dom: "body" }, { dom: "page" }).returns({ dom: "body" })),
+      ]),
+    ]);
+
+    const io = implementation(IO, function* () {
+      const body = yield* this.body();
+      const { name } = yield* this.once(body, "submit");
+      const page = yield* this.html`<div>Hello, ${name || "world"}!</div>`;
+      yield* this.append(body, page);
+    });
+
+    verify(IO, io);
+  });
+
   it("should not allow use of effects that were not defined in the program", () => {
     const IO = program([]);
     const io = implementation(IO, function* () {
