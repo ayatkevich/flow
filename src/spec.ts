@@ -255,7 +255,9 @@ describe("tracify", () => {
 
     const io = implementation(IO, function* () {
       const result = yield* this.random();
+      result satisfies number | Error;
       if (result instanceof Error) throw result;
+      result satisfies number;
       return result;
     });
 
