@@ -236,6 +236,32 @@ describe("tracify", () => {
     verify(IO, io);
   });
 
+  test("example - random number generator", async () => {
+    const random = fn("random");
+
+    const IO = program([
+      trace([
+        //
+        yields(random.takes().returns(42)),
+        returns(42),
+      ]),
+    ]);
+
+    const io = implementation(IO, function* () {
+      return yield* this.random();
+    });
+
+    verify(IO, io);
+
+    expect(
+      await handle(io, {
+        random() {
+          return Math.floor(Math.random() * 100);
+        },
+      })
+    ).toEqual(expect.any(Number));
+  });
+
   it("should not allow use of effects that were not defined in the program", () => {
     const IO = program([]);
     const io = implementation(IO, function* () {
