@@ -213,7 +213,12 @@ export async function handle<T extends (this: Context<AnyProgram>) => Generator<
   );
   let next = generator.next();
   while (!next.done) {
-    next = generator.next(next.value instanceof Promise ? await next.value : next.value);
+    try {
+      var nextValue = next.value instanceof Promise ? await next.value : next.value;
+    } catch (error) {
+      nextValue = error;
+    }
+    next = generator.next(nextValue);
   }
   return next.value;
 }

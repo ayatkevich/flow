@@ -245,10 +245,18 @@ describe("tracify", () => {
         yields(random.takes().returns(42)),
         returns(42),
       ]),
+
+      trace([
+        // handler throws an error
+        yields(random.takes().returns(new Error("random error"))),
+        throws(new Error("random error")),
+      ]),
     ]);
 
     const io = implementation(IO, function* () {
-      return yield* this.random();
+      const result = yield* this.random();
+      if (result instanceof Error) throw result;
+      return result;
     });
 
     verify(IO, io);
@@ -260,6 +268,22 @@ describe("tracify", () => {
         },
       })
     ).toEqual(expect.any(Number));
+
+    await expect(
+      handle(io, {
+        random() {
+          throw new Error("random error");
+        },
+      })
+    ).rejects.toThrow("random error");
+
+    await expect(
+      handle(io, {
+        async random() {
+          throw new Error("random error");
+        },
+      })
+    ).rejects.toThrow("random error");
   });
 
   it("should not allow use of effects that were not defined in the program", () => {
