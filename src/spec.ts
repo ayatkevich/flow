@@ -396,4 +396,103 @@ describe("tracify", () => {
       )
     ).toThrow("expected fn but got tag");
   });
+
+  test("verify", () => {
+    const IO = program([
+      trace([
+        //
+        yields(fn("effect").takes(1).returns({ a: 1 })),
+        returns({ a: 1 }),
+      ]),
+    ]);
+
+    // correct implementation
+    verify(
+      IO,
+      implementation(IO, function* () {
+        return yield* this.effect(1);
+      })
+    );
+
+    // incorrect implementation
+    expect(() =>
+      verify(
+        IO,
+        implementation(IO, function* () {
+          yield* this.effect(1);
+          return { a: 2 };
+        })
+      )
+    ).toThrow(`expected {"a":1} but got {"a":2}`);
+  });
+
+  test("verify", () => {
+    const IO = program([
+      trace([
+        //
+        yields(fn("effect").takes(1).returns("string")),
+        throws(new Error("error")),
+      ]),
+    ]);
+
+    // correct implementation
+    verify(
+      IO,
+      implementation(IO, function* () {
+        yield* this.effect(1);
+        throw new Error("error");
+      })
+    );
+
+    // incorrect implementation
+    expect(() =>
+      verify(
+        IO,
+        implementation(IO, function* () {
+          yield* this.effect(1);
+        })
+      )
+    ).toThrow(`expected {} but got undefined`);
+
+    // incorrect implementation
+    expect(() =>
+      verify(
+        IO,
+        implementation(IO, function* () {
+          yield* this.effect(1);
+          yield* this.effect(1);
+        })
+      )
+    ).toThrow(`expected to throw but didn't`);
+
+    // incorrect implementation
+    expect(() =>
+      verify(
+        IO,
+        implementation(IO, function* () {})
+      )
+    ).toThrow("expected to yield but returned");
+
+    // incorrect implementation
+    expect(() =>
+      verify(
+        IO,
+        implementation(IO, function* () {
+          // @ts-expect-error wrong effect
+          yield* this.wrongEffect();
+        })
+      )
+    ).toThrow("expected effect but got wrongEffect");
+
+    // incorrect implementation
+    expect(() =>
+      verify(
+        IO,
+        implementation(IO, function* () {
+          // @ts-expect-error wrong kind of effect
+          yield* this.effect``;
+        })
+      )
+    ).toThrow("expected fn but got tag");
+  });
 });
