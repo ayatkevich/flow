@@ -1,43 +1,38 @@
-const kind = Symbol("kind");
-const signature = Symbol("signature");
-const type = Symbol("type");
-const effect = Symbol("effect");
-
 type AnyEffect = {
-  [kind]: "effect";
-  [effect]: string;
-  [signature]: any;
+  kind: "effect";
   from: "tag" | "fn";
+  name: string;
+  signature: any;
   takes: any[];
   returns: any;
 };
 
 type AnyYield = {
-  [kind]: "step";
-  [type]: "yields";
+  kind: "step";
+  type: "yields";
   effect: AnyEffect;
 };
 
 type AnyStep =
   | AnyYield
   | {
-      [kind]: "step";
-      [type]: "throws";
+      kind: "step";
+      type: "throws";
       error: any;
     }
   | {
-      [kind]: "step";
-      [type]: "returns";
+      kind: "step";
+      type: "returns";
       value: any;
     };
 
 type AnyTrace = {
-  [kind]: "trace";
+  kind: "trace";
   steps: AnyStep[];
 };
 
 type AnyProgram = {
-  [kind]: "program";
+  kind: "program";
   traces: AnyTrace[];
 };
 
@@ -45,22 +40,22 @@ type Steps<T extends AnyProgram> = T["traces"][number]["steps"][number];
 
 type ProgramEffects<T> = T extends AnyYield ? T["effect"] : never;
 
-type ProgramEffect<T, Name extends string> = T extends { [effect]: Name } ? T : never;
+type ProgramEffect<T, Name extends string> = T extends { kind: "effect"; name: Name } ? T : never;
 
 type Context<T extends AnyProgram> = {
-  [Name in ProgramEffects<Steps<T>>[typeof effect]]: ProgramEffect<
+  [Name in ProgramEffects<Steps<T>>["name"]]: ProgramEffect<
     ProgramEffects<Steps<T>>,
     Name
-  >[typeof signature];
+  >["signature"];
 };
 
 type ImplementationEffects<T extends (this: Context<AnyProgram>) => Generator<any, any, any>> =
-  ReturnType<T> extends Generator<infer Effects extends { [effect]: string }, any, any>
-    ? Effects
+  ReturnType<T> extends Generator<infer Effect extends { kind: "effect"; name: string }, any, any>
+    ? Effect
     : never;
 
 type ImplementationEffect<T, Name extends string> = T extends {
-  [effect]: Name;
+  name: Name;
   from: "tag" | "fn";
   takes: any;
   returns: any;
@@ -71,7 +66,7 @@ type ImplementationEffect<T, Name extends string> = T extends {
 type Promisable<T> = T | Promise<T>;
 
 type Handlers<T extends (this: Context<AnyProgram>) => Generator<any, any, any>> = {
-  [Name in ImplementationEffects<T>[typeof effect]]: ImplementationEffect<
+  [Name in ImplementationEffects<T>["name"]]: ImplementationEffect<
     ImplementationEffects<T>,
     Name
   >["from"] extends "tag"
@@ -90,19 +85,19 @@ export function tag<const T extends string>(tag: T) {
       return {
         returns<V>(value: V) {
           return {
-            [kind]: "effect" as const,
-            [effect]: tag,
+            kind: "effect" as const,
+            name: tag,
             from: "tag" as const,
             takes: params,
             returns: value,
-            [signature]: undefined as any as (
+            signature: undefined as any as (
               strings: TemplateStringsArray,
               ...args: [...P]
             ) => {
               [Symbol.iterator]: () => Iterator<
                 {
-                  [kind]: "effect";
-                  [effect]: T;
+                  kind: "effect";
+                  name: T;
                   from: "tag";
                   takes: [...P];
                   returns: V;
@@ -123,16 +118,16 @@ export function fn<const T extends string>(tag: T) {
       return {
         returns<V>(value: V) {
           return {
-            [kind]: "effect" as const,
-            [effect]: tag,
+            kind: "effect" as const,
+            name: tag,
             from: "fn" as const,
             takes: params,
             returns: value,
-            [signature]: undefined as any as (...args: [...P]) => {
+            signature: undefined as any as (...args: [...P]) => {
               [Symbol.iterator]: () => Iterator<
                 {
-                  [kind]: "effect";
-                  [effect]: T;
+                  kind: "effect";
+                  name: T;
                   from: "fn";
                   takes: [...P];
                   returns: V;
@@ -149,38 +144,38 @@ export function fn<const T extends string>(tag: T) {
 
 export function yields<T extends AnyEffect>(effect: T) {
   return {
-    [kind]: "step" as const,
-    [type]: "yields" as const,
+    kind: "step" as const,
+    type: "yields" as const,
     effect,
   };
 }
 
 export function throws<T>(error: T) {
   return {
-    [kind]: "step" as const,
-    [type]: "throws" as const,
+    kind: "step" as const,
+    type: "throws" as const,
     error,
   };
 }
 
 export function returns<T>(value: T) {
   return {
-    [kind]: "step" as const,
-    [type]: "returns" as const,
+    kind: "step" as const,
+    type: "returns" as const,
     value,
   };
 }
 
 export function trace<T extends AnyStep[]>(steps: T) {
   return {
-    [kind]: "trace" as const,
+    kind: "trace" as const,
     steps,
   };
 }
 
-export function program<T extends { [kind]: "trace" }>(traces: T[]) {
+export function program<T extends { kind: "trace" }>(traces: T[]) {
   return {
-    [kind]: "program" as const,
+    kind: "program" as const,
     traces,
   };
 }
@@ -242,8 +237,8 @@ export function verify<
                 }
                 // @ts-expect-error
                 return yield {
-                  [kind]: "effect" as const,
-                  [effect]: property,
+                  kind: "effect" as const,
+                  effect: property,
                   from,
                   takes: args,
                 };
@@ -258,11 +253,11 @@ export function verify<
     let nextValue;
 
     for (const step of trace.steps) {
-      switch (step[type]) {
+      switch (step.type) {
         case "yields":
           if (next.done) throw new Error("expected to yield but returned");
-          if (next.value[effect] !== step.effect[effect])
-            throw new Error(`expected ${step.effect[effect]} but got ${next.value[effect]}`);
+          if (next.value.effect !== step.effect.name)
+            throw new Error(`expected ${step.effect.name} but got ${next.value.effect}`);
           if (next.value.from !== step.effect.from)
             throw new Error(`expected ${step.effect.from} but got ${next.value.from}`);
           if (!deepEqual(next.value.takes, step.effect.takes))
