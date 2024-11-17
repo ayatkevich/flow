@@ -1,40 +1,41 @@
-type AnyEffect = {
+interface AnyEffect {
   kind: "effect";
   from: "tag" | "fn";
   name: string;
   signature: any;
   takes: any[];
   returns: any;
-};
+}
 
-type AnyYield = {
+interface AnyYield {
   kind: "step";
   type: "yields";
   effect: AnyEffect;
-};
+}
 
-type AnyStep =
-  | AnyYield
-  | {
-      kind: "step";
-      type: "throws";
-      error: any;
-    }
-  | {
-      kind: "step";
-      type: "returns";
-      value: any;
-    };
+interface AnyThrow {
+  kind: "step";
+  type: "throws";
+  error: any;
+}
 
-type AnyTrace = {
+interface AnyReturn {
+  kind: "step";
+  type: "returns";
+  value: any;
+}
+
+type AnyStep = AnyYield | AnyThrow | AnyReturn;
+
+interface AnyTrace {
   kind: "trace";
   steps: AnyStep[];
-};
+}
 
-type AnyProgram = {
+interface AnyProgram {
   kind: "program";
   traces: AnyTrace[];
-};
+}
 
 type Steps<T extends AnyProgram> = T["traces"][number]["steps"][number];
 
