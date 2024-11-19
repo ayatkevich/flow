@@ -423,6 +423,17 @@ describe("tracify", () => {
         })
       )
     ).toThrow("expected fn but got tag");
+
+    // incorrect implementation
+    expect(() =>
+      verify(
+        IO,
+        implementation(IO, function* () {
+          // @ts-expect-error wrong kind of effect
+          yield* this.effect([]);
+        })
+      )
+    ).toThrow("expected [1] but got [[]]");
   });
 
   test("verify", () => {

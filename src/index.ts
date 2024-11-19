@@ -232,7 +232,7 @@ export function verify<
             return (...args: any[]) => ({
               [Symbol.iterator]: function* () {
                 let from = "fn";
-                if (Array.isArray(args[0]) && args[0].every((item) => typeof item === "string")) {
+                if (Array.isArray(args[0]) && args[0].hasOwnProperty("raw")) {
                   from = "tag";
                   args = args.slice(1);
                 }
