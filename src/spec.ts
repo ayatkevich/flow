@@ -4,7 +4,6 @@ import {
   implementation,
   program,
   returns,
-  tag,
   throws,
   trace,
   verify,
@@ -12,75 +11,6 @@ import {
 } from "./index";
 
 describe("tracify", () => {
-  test("example", async () => {
-    const sql = tag("sql");
-    const fetch = fn("fetch");
-
-    const IO = program([
-      trace([
-        //
-        yields(sql.takes(1, "Alice").returns([])),
-        throws(new Error("no users")),
-      ]),
-
-      trace([
-        //
-        yields(sql.takes(1, "Alice").returns(undefined)),
-        throws(new Error("no users")),
-      ]),
-
-      trace([
-        //
-        yields(sql.takes(1, "Alice").returns([{ id: 1, name: "Alice" }])),
-        yields(
-          fetch.takes("stripe/customers", { query: { userId: 1 } }).returns([
-            {
-              id: 1,
-              name: "Alice",
-              stripeCustomerId: "cus_1234567890",
-            },
-          ])
-        ),
-        returns(undefined),
-      ]),
-    ]);
-
-    const io = implementation(IO, function* () {
-      const users = yield* this.sql`
-        select * from users where "id" = ${1} and "name" = ${"Alice"}
-      `;
-      users satisfies { id: number; name: string }[] | undefined;
-
-      if (!users || !users.length) throw new Error("no users");
-
-      for (const user of users) {
-        const stripeCustomers = yield* this.fetch(`stripe/customers`, {
-          query: { userId: user.id },
-        });
-        stripeCustomers satisfies {
-          id: number;
-          name: string;
-          stripeCustomerId: string;
-        }[];
-      }
-    });
-
-    await handle(io, {
-      async sql(strings, ...params) {
-        strings satisfies TemplateStringsArray;
-        params satisfies [number, string];
-        return [{ id: params[0], name: params[1] }];
-      },
-      fetch(url, options) {
-        url satisfies string;
-        options satisfies { query: { userId: number } };
-        return [];
-      },
-    });
-
-    verify(IO, io);
-  });
-
   test("example - cli tool", async () => {
     const env = fn("env");
     const getPackageJson = fn("getPackageJson");
@@ -288,32 +218,6 @@ describe("tracify", () => {
     ).rejects.toThrow("random error");
   });
 
-  test("example - dom", async () => {
-    const IO = program([
-      trace([
-        yields(fn("body").takes().returns({ dom: "body" })),
-        yields(fn("once").takes({ dom: "body" }, "submit").returns({ name: "" })),
-        yields(tag("html").takes("world").returns({ dom: "page" })),
-        yields(fn("append").takes({ dom: "body" }, { dom: "page" }).returns({ dom: "body" })),
-      ]),
-      trace([
-        yields(fn("body").takes().returns({ dom: "body" })),
-        yields(fn("once").takes({ dom: "body" }, "submit").returns({ name: "username" })),
-        yields(tag("html").takes("username").returns({ dom: "page" })),
-        yields(fn("append").takes({ dom: "body" }, { dom: "page" }).returns({ dom: "body" })),
-      ]),
-    ]);
-
-    const io = implementation(IO, function* () {
-      const body = yield* this.body();
-      const { name } = yield* this.once(body, "submit");
-      const page = yield* this.html`<div>Hello, ${name || "world"}!</div>`;
-      yield* this.append(body, page);
-    });
-
-    verify(IO, io);
-  });
-
   it("should not allow use of effects that were not defined in the program", () => {
     const IO = program([]);
     const io = implementation(IO, function* () {
@@ -419,17 +323,6 @@ describe("tracify", () => {
         IO,
         implementation(IO, function* () {
           // @ts-expect-error wrong kind of effect
-          yield* this.effect``;
-        })
-      )
-    ).toThrow("expected fn but got tag");
-
-    // incorrect implementation
-    expect(() =>
-      verify(
-        IO,
-        implementation(IO, function* () {
-          // @ts-expect-error wrong kind of effect
           yield* this.effect([]);
         })
       )
@@ -522,16 +415,5 @@ describe("tracify", () => {
         })
       )
     ).toThrow("expected effect but got wrongEffect");
-
-    // incorrect implementation
-    expect(() =>
-      verify(
-        IO,
-        implementation(IO, function* () {
-          // @ts-expect-error wrong kind of effect
-          yield* this.effect``;
-        })
-      )
-    ).toThrow("expected fn but got tag");
   });
 });

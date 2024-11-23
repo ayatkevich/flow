@@ -1,6 +1,5 @@
 interface AnyEffect {
   kind: "effect";
-  from: "tag" | "fn";
   name: string;
   signature: any;
   takes: any[];
@@ -57,7 +56,6 @@ type ImplementationEffects<T extends (this: Context<AnyProgram>) => Generator<an
 
 type ImplementationEffect<T, Name extends string> = T extends {
   name: Name;
-  from: "tag" | "fn";
   takes: any;
   returns: any;
 }
@@ -67,51 +65,10 @@ type ImplementationEffect<T, Name extends string> = T extends {
 type Promisable<T> = T | Promise<T>;
 
 type Handlers<T extends (this: Context<AnyProgram>) => Generator<any, any, any>> = {
-  [Name in ImplementationEffects<T>["name"]]: ImplementationEffect<
-    ImplementationEffects<T>,
-    Name
-  >["from"] extends "tag"
-    ? (
-        strings: TemplateStringsArray,
-        ...params: [...ImplementationEffect<ImplementationEffects<T>, Name>["takes"]]
-      ) => Promisable<ImplementationEffect<ImplementationEffects<T>, Name>["returns"]>
-    : (
-        ...params: [...ImplementationEffect<ImplementationEffects<T>, Name>["takes"]]
-      ) => Promisable<ImplementationEffect<ImplementationEffects<T>, Name>["returns"]>;
+  [Name in ImplementationEffects<T>["name"]]: (
+    ...params: [...ImplementationEffect<ImplementationEffects<T>, Name>["takes"]]
+  ) => Promisable<ImplementationEffect<ImplementationEffects<T>, Name>["returns"]>;
 };
-
-export function tag<const T extends string>(tag: T) {
-  return {
-    takes<P extends any[]>(...params: P) {
-      return {
-        returns<V>(value: V) {
-          return {
-            kind: "effect" as const,
-            name: tag,
-            from: "tag" as const,
-            takes: params,
-            returns: value,
-            signature: undefined as any as (
-              strings: TemplateStringsArray,
-              ...args: [...P]
-            ) => {
-              [Symbol.iterator]: () => Iterator<
-                {
-                  kind: "effect";
-                  name: T;
-                  from: "tag";
-                  takes: [...P];
-                  returns: V;
-                },
-                V
-              >;
-            },
-          };
-        },
-      };
-    },
-  };
-}
 
 export function fn<const T extends string>(tag: T) {
   return {
@@ -121,7 +78,6 @@ export function fn<const T extends string>(tag: T) {
           return {
             kind: "effect" as const,
             name: tag,
-            from: "fn" as const,
             takes: params,
             returns: value,
             signature: undefined as any as (...args: [...P]) => {
@@ -129,7 +85,6 @@ export function fn<const T extends string>(tag: T) {
                 {
                   kind: "effect";
                   name: T;
-                  from: "fn";
                   takes: [...P];
                   returns: V;
                 },
@@ -231,16 +186,10 @@ export function verify<
           get(_, property) {
             return (...args: any[]) => ({
               [Symbol.iterator]: function* () {
-                let from = "fn";
-                if (Array.isArray(args[0]) && args[0].hasOwnProperty("raw")) {
-                  from = "tag";
-                  args = args.slice(1);
-                }
                 // @ts-expect-error
                 return yield {
                   kind: "effect" as const,
                   effect: property,
-                  from,
                   takes: args,
                 };
               },
@@ -259,8 +208,6 @@ export function verify<
           if (next.done) throw new Error("expected to yield but returned");
           if (next.value.effect !== step.effect.name)
             throw new Error(`expected ${step.effect.name} but got ${next.value.effect}`);
-          if (next.value.from !== step.effect.from)
-            throw new Error(`expected ${step.effect.from} but got ${next.value.from}`);
           if (!deepEqual(next.value.takes, step.effect.takes))
             throw new Error(
               `expected ${JSON.stringify(step.effect.takes)} but got ${JSON.stringify(
