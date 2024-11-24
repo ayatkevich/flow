@@ -416,4 +416,56 @@ describe("tracify", () => {
       )
     ).toThrow("expected effect but got wrongEffect");
   });
+
+  it("should not be influenced by never[]", () => {
+    const IO = program([
+      trace([
+        yields(
+          fn("effect")
+            .takes([])
+            .returns(void 0)
+        ),
+        yields(
+          fn("effect")
+            .takes([{ a: 1 }])
+            .returns(void 0)
+        ),
+      ]),
+    ]);
+    verify(
+      IO,
+      implementation(IO, function* () {
+        yield* this.effect([]);
+        yield* this.effect([{ a: 1 }]);
+      })
+    );
+  });
+
+  it("should allow polymorphic effects", () => {
+    const IO = program([
+      trace([
+        yields(fn("effect").takes({ id: 1 }).returns(1)),
+        yields(
+          fn("effect")
+            .takes([{ id: 1 }])
+            .returns("done")
+        ),
+      ]),
+    ]);
+    verify(
+      IO,
+      implementation(IO, function* () {
+        {
+          const result = yield* this.effect({ id: 1 });
+          result satisfies number | string;
+          expect(result).toEqual(1);
+        }
+        {
+          const result = yield* this.effect([{ id: 1 }]);
+          result satisfies string | number;
+          expect(result).toEqual("done");
+        }
+      })
+    );
+  });
 });

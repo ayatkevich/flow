@@ -1,7 +1,6 @@
 interface AnyEffect {
   kind: "effect";
   name: string;
-  signature: any;
   takes: any[];
   returns: any;
 }
@@ -40,13 +39,24 @@ type Steps<T extends AnyProgram> = T["traces"][number]["steps"][number];
 
 type ProgramEffects<T> = T extends AnyYield ? T["effect"] : never;
 
-type ProgramEffect<T, Name extends string> = T extends { kind: "effect"; name: Name } ? T : never;
+type ProgramEffect<T, Name extends string> = T extends {
+  kind: "effect";
+  name: Name;
+  takes: any[];
+  returns: any;
+}
+  ? T
+  : never;
 
 type Context<T extends AnyProgram> = {
-  [Name in ProgramEffects<Steps<T>>["name"]]: ProgramEffect<
-    ProgramEffects<Steps<T>>,
-    Name
-  >["signature"];
+  [Name in ProgramEffects<Steps<T>>["name"]]: (
+    ...args: [...ProgramEffect<ProgramEffects<Steps<T>>, Name>["takes"]]
+  ) => {
+    [Symbol.iterator]: () => Iterator<
+      ProgramEffect<ProgramEffects<Steps<T>>, Name>,
+      ProgramEffect<ProgramEffects<Steps<T>>, Name>["returns"]
+    >;
+  };
 };
 
 type ImplementationEffects<T extends (this: Context<AnyProgram>) => Generator<any, any, any>> =
@@ -80,17 +90,6 @@ export function fn<const T extends string>(tag: T) {
             name: tag,
             takes: params,
             returns: value,
-            signature: undefined as any as (...args: [...P]) => {
-              [Symbol.iterator]: () => Iterator<
-                {
-                  kind: "effect";
-                  name: T;
-                  takes: [...P];
-                  returns: V;
-                },
-                V
-              >;
-            },
           };
         },
       };
