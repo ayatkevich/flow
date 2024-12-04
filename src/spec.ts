@@ -251,12 +251,16 @@ describe("tracify", () => {
           return value;
         },
       });
-      await handle(io, {
-        async effect(value) {
-          value satisfies number;
-          return "string";
+      await handle(
+        io,
+        {
+          async effect(value) {
+            value satisfies number;
+            return "string";
+          },
         },
-      });
+        {}
+      );
     } catch {}
   });
 
