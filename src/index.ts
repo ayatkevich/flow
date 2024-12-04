@@ -144,7 +144,11 @@ export function implementation<
 
 export async function handle<T extends (this: Context<AnyProgram>) => Generator<any, any, any>>(
   generatorFunction: T,
-  handlers: Handlers<T>
+  handlers: Handlers<T>,
+  options?: {
+    enter?: (effect: string | symbol, takes: any[]) => void;
+    leave?: (effect: string | symbol, returns: any) => void;
+  }
 ) {
   const generator = generatorFunction.call(
     new Proxy(
@@ -154,7 +158,7 @@ export async function handle<T extends (this: Context<AnyProgram>) => Generator<
           return (...args: any[]) => ({
             [Symbol.iterator]: function* () {
               // @ts-expect-error
-              return yield handlers[property as keyof Handlers<T>](...args);
+              return yield [property, args];
             },
           });
         },
@@ -162,15 +166,19 @@ export async function handle<T extends (this: Context<AnyProgram>) => Generator<
     )
   );
   let next = generator.next();
+  let nextValue;
   while (!next.done) {
     try {
-      var nextValue = next.value instanceof Promise ? await next.value : next.value;
+      const [effect, takes] = next.value;
+      options?.enter?.(effect, takes);
+      nextValue = await handlers[effect as keyof Handlers<T>](...takes);
+      options?.leave?.(effect, nextValue);
     } catch (error) {
       nextValue = error;
     }
     next = generator.next(nextValue);
   }
-  return next.value;
+  return nextValue;
 }
 
 export function verify<

@@ -468,4 +468,43 @@ describe("tracify", () => {
       })
     );
   });
+
+  it("should implement plugin api", async () => {
+    const log = jest.fn();
+    const IO = program([
+      trace([
+        yields(
+          fn("effect")
+            .takes([])
+            .returns(void 0)
+        ),
+      ]),
+    ]);
+
+    const io = implementation(IO, function* () {
+      yield* this.effect([]);
+    });
+
+    await handle(
+      io,
+      {
+        async effect() {
+          return void 0;
+        },
+      },
+      {
+        enter(effect, takes) {
+          log("enter", effect, takes);
+        },
+        leave(effect, returns) {
+          log("leave", effect, returns);
+        },
+      }
+    );
+
+    expect(log.mock.calls).toEqual([
+      ["enter", "effect", [[]]],
+      ["leave", "effect", undefined],
+    ]);
+  });
 });
