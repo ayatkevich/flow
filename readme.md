@@ -1,7 +1,7 @@
-# @ayatkevich/tracify
+# @ayatkevich/flow
 
 An extensible effect handling library for tracing and verifying generator functions in TypeScript.
-Tracify allows you to infer types of effects and their arguments from individual, concrete traces
+Flow allows you to infer types of effects and their arguments from individual, concrete traces
 without manually defining them. This approach not only ensures static type safety but also enables
 dynamic verification of implementations, facilitating test-driven development with extensible
 effects.
@@ -23,8 +23,8 @@ effects.
 
 ## Introduction
 
-Tracify simplifies the management of side effects in asynchronous generator functions by using
-traces to infer types and arguments. This method eliminates the need for manual type definitions for
+Flow simplifies the management of side effects in asynchronous generator functions by using traces
+to infer types and arguments. This method eliminates the need for manual type definitions for
 effects, enhancing both development speed and code reliability.
 
 ## Key Features
@@ -39,7 +39,7 @@ effects, enhancing both development speed and code reliability.
 ## Installation
 
 ```bash
-npm install @ayatkevich/tracify
+npm install @ayatkevich/flow
 ```
 
 ## Usage
@@ -47,7 +47,7 @@ npm install @ayatkevich/tracify
 ### Defining a Program
 
 Use the `program` function to define a set of traces, where each trace is a sequence of steps
-(`yields`, `throws`, or `returns`). Tracify uses these traces to infer effect types and arguments.
+(`yields`, `throws`, or `returns`). Flow uses these traces to infer effect types and arguments.
 
 ```typescript
 const AI = program([

@@ -10,7 +10,7 @@ import {
   yields,
 } from "./index";
 
-describe("tracify", () => {
+describe("flow", () => {
   test("example - cli tool", async () => {
     const env = fn("env");
     const getPackageJson = fn("getPackageJson");
